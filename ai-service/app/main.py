@@ -1,5 +1,5 @@
 """FastAPI application entry point for Flight Tracking AI Service."""
-
+from app.api.delay_prediction import router as delay_prediction_router
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -173,7 +173,7 @@ def create_app() -> FastAPI:
     app.include_router(memory_router, prefix="/api/ai")
     app.include_router(atc_router, prefix="/api/ai")
     app.include_router(observability_router, prefix="/api/ai")
-
+    app.include_router(delay_prediction_router)
     # Mount MCP server (SSE transport) at /mcp
     try:
         from app.mcp.server import get_mcp_sse_app
