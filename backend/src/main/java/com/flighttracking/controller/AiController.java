@@ -62,4 +62,22 @@ public class AiController {
                 .header("X-Request-ID", rid != null ? rid : "")
                 .body(response);
     }
+    @PostMapping("/delay/predict")
+    public ResponseEntity<Map<String, Object>> predictDelay(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Request-ID", required = false) String requestId,
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
+        String rid = requestId;
+        if (rid == null || rid.isBlank()) {
+            Object attr = httpRequest.getAttribute("X-Request-ID");
+            rid = attr != null ? attr.toString() : null;
+        }
+        String userId = authentication != null ? authentication.getName() : "anonymous";
+        Map<String, Object> response = aiServiceClient.predictDelay(request, userId, rid);
+        return ResponseEntity.ok()
+                .header("X-Request-ID", rid != null ? rid : "")
+                .body(response);
+    }
+
 }
