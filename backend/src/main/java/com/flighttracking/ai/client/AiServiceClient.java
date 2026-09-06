@@ -131,4 +131,29 @@ public class AiServiceClient {
     public Map<String, Object> recommend(RecommendationRequest request, String userId) {
         return recommend(request, userId, null);
     }
+    public Map<String, Object> predictDelay(Map<String, Object> request, String userId, String requestId) {
+        try {
+            log.debug("Sending delay prediction request to AI service");
+            var builder = restClient.post()
+                    .uri("/api/ai/delay/predict")
+                    .header("X-User-Id", userId != null ? userId : "anonymous");
+            if (requestId != null && !requestId.isBlank()) {
+                builder = builder.header("X-Request-ID", requestId);
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = builder
+                    .body(request)
+                    .retrieve()
+                    .body(Map.class);
+            if (response == null) {
+                throw new ExternalApiException("Empty delay prediction response from AI service", 502);
+            }
+            return response;
+        } catch (RestClientException e) {
+            log.error("AI service delay prediction failed: {}", e.getMessage());
+            throw new ExternalApiException("AI service delay prediction error: " + e.getMessage(), e);
+        }
+    }
+
+
 }
