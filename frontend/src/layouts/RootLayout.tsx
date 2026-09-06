@@ -4,7 +4,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { Menu, Plane, LogOut, User, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 type NavItem = { to: string; label: string; requiresAuth?: boolean; guestOnly?: boolean; roles?: Array<"USER" | "ATC_EMPLOYEE" | "ADMIN"> };
@@ -13,6 +12,7 @@ const commonItems: NavItem[] = [
   { to: "/tracking", label: "Track" },
   { to: "/airports", label: "Airports" },
   { to: "/aircraft", label: "Aircraft" },
+  { to: "/delay-prediction", label: "Delay AI" },
 ];
 
 export function RootLayout() {
