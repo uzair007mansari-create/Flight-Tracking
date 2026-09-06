@@ -135,7 +135,7 @@ public class AiServiceClient {
         try {
             log.debug("Sending delay prediction request to AI service");
             var builder = restClient.post()
-                    .uri("/api/ai/delay/predict")
+                    .uri("/delay/predict")
                     .header("X-User-Id", userId != null ? userId : "anonymous");
             if (requestId != null && !requestId.isBlank()) {
                 builder = builder.header("X-Request-ID", requestId);

@@ -5,6 +5,13 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
+import {
+  Plane,
+  User,
+  ShieldCheck,
+  LogOut,
+  Menu,
+} from "lucide-react";
 
 type NavItem = { to: string; label: string; requiresAuth?: boolean; guestOnly?: boolean; roles?: Array<"USER" | "ATC_EMPLOYEE" | "ADMIN"> };
 
