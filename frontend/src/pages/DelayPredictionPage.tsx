@@ -1,5 +1,4 @@
-import { useState } from "react";
-import type { FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { BrainCircuit, AlertCircle } from "lucide-react";
 import { aiService, type DelayPredictionRequest, type DelayPredictionResponse } from "@/services/ai.service";
 import { ApiError } from "@/services/api";
@@ -36,7 +35,7 @@ export function DelayPredictionPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const submit = async (e: FormEvent) => {
+const submit = async (e: SubmitEvent<HTMLFormElement>) => {
     e.preventDefault(); setLoading(true); setError(null); setResult(null);
     try { setResult(await aiService.predictDelay(form)); }
     catch (e) { setError(e instanceof ApiError ? e.message : "Prediction failed."); }
