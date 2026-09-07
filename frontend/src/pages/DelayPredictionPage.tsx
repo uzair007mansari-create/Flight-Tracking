@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { BrainCircuit, AlertCircle } from "lucide-react";
 import { aiService, type DelayPredictionRequest, type DelayPredictionResponse } from "@/services/ai.service";
 import { ApiError } from "@/services/api";
