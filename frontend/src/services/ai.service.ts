@@ -47,44 +47,62 @@ export interface RecommendationResponse {
 
 
 export interface DelayPredictionRequest {
+  from_airport: string;
+  to_airport: string;
+  airline: string;
+
   year: number;
   month: number;
-  airport: string;
-  arr_flights: number;
-  arr_del15: number;
-  carrier_ct: number;
-  weather_ct: number;
-  nas_ct: number;
-  late_aircraft_ct: number;
-  arr_cancelled: number;
-  arr_diverted: number;
-  delay_rate: number;
-  cancellation_rate: number;
-  diversion_rate: number;
-  operational_disruptions: number;
-  congestion_index: number;
-  operational_efficiency: number;
-  relative_congestion: number;
-  previous_congestion: number;
-  congestion_trend: number;
+  day: number;
+  day_of_week: number;
+
+  sdep: number;
+  sarr: number;
+
+  departure_delay: number;
+
+  distance: number;
+  passenger_load_factor: number;
+  airline_rating: number;
+  airport_rating: number;
+  market_share: number;
+  otp_index: number;
+
+  windspeed: number;
+  weather_description: string;
+  precipitation: number;
+  humidity: number;
+  visibility: number;
+  pressure: number;
+  cloudcover: number;
 }
 
 export interface DelayPredictionResponse {
-  airport: string;
   predicted_delay_minutes: number;
   status: "Delayed" | "On Time";
   model: string;
   target: string;
 }
 
+export interface FlightDelayPrediction {
+  flight_number: string;
+  from_airport: string;
+  to_airport: string;
+  predicted_delay_minutes: number;
+  scheduled_arrival?: string;
+  predicted_arrival?: string;
+  status: string;
+  model: string;
+}
+
 export const aiService = {
-  chat: (message: string, conversationId?: string) =>
-    Api.post<ChatResponse>("/api/ai/chat", {
-      message,
-      ...(conversationId ? { conversationId } : {}),
-    }),
-  recommend: (query: string) =>
-    Api.post<RecommendationResponse>("/api/ai/recommend", { query }),
-  predictDelay: (request: DelayPredictionRequest) =>
-    Api.post<DelayPredictionResponse>("/api/ai/delay/predict", request),
+  getFlightDelayPrediction: async (
+  flightNumber: string
+  ): Promise<FlightDelayPrediction> => {
+    const response = await Api.get<FlightDelayPrediction>(
+      `/api/ai/delay/flight/${encodeURIComponent(flightNumber)}`
+    );
+
+    return response;
+  },
 };
