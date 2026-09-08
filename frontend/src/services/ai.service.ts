@@ -95,14 +95,25 @@ export interface FlightDelayPrediction {
   model: string;
 }
 
-export const aiService = {
-  getFlightDelayPrediction: async (
-  flightNumber: string
-  ): Promise<FlightDelayPrediction> => {
-    const response = await Api.get<FlightDelayPrediction>(
-      `/api/ai/delay/flight/${encodeURIComponent(flightNumber)}`
-    );
+// Keep your EXISTING interfaces for chat/recommend here.
+// Do not delete them.
 
-    return response;
+export const aiService = {
+  // KEEP YOUR EXISTING chat FUNCTION
+  chat: async (request: any) => {
+    return Api.post("/api/ai/chat", request);
   },
+
+  // KEEP YOUR EXISTING recommend FUNCTION
+  recommend: async (request: any) => {
+    return Api.post("/api/ai/recommend", request);
+  },
+
+  // ADD this new function
+  getFlightDelayPrediction: (
+    flightNumber: string
+  ): Promise<FlightDelayPrediction> =>
+    Api.get<FlightDelayPrediction>(
+      `/api/ai/delay/flight/${encodeURIComponent(flightNumber)}`
+    ),
 };

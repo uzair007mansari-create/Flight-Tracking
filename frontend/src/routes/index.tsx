@@ -16,7 +16,7 @@ const AircraftPage = lazy(() => import("@/pages/AircraftPage").then((m) => ({ de
 const AtcPage = lazy(() => import("@/pages/AtcPage").then((m) => ({ default: m.AtcPage })));
 const ProfilePage = lazy(() => import("@/pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const AiPage = lazy(() => import("@/pages/AiPage").then((m) => ({ default: m.AiPage })));
-const DelayPredictionPage = lazy(() => import("@/pages/DelayPredictionPage").then((m) => ({ default: m.DelayPredictionPage })));
+const DelayPredictionPage = lazy(() => import("../pages/DelayPredictionPage"));
 
 function LazyFallback() {
   return (
@@ -59,6 +59,10 @@ export const router = createBrowserRouter([
             <AtcPage />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "/delay-prediction/:flightNumber",
+        element: <DelayPredictionPage />,
       },
       {
         path: "profile",
