@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { flightService, type FlightSearchParams } from "@/services/flight.service";
 import { airportService } from "@/services/airport.service";
 import { weatherService } from "@/services/weather.service";
+import { delayPredictionService } from "@/services/delayPredictionService";
 import { ApiError } from "@/services/api";
-import type { FlightDto, FlightTrackingDto, WeatherDto } from "@/types/api";
+import type { FlightDto, FlightTrackingDto, WeatherDto, DelayPredictionResponse } from "@/types/api";
 import { TrackingMap } from "@/components/tracking/TrackingMap";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,6 +96,11 @@ function isAirborne(tracking: FlightTrackingDto | null, flight: FlightDto | null
 export function TrackingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Request guards to prevent race conditions
+  const initialSearchStartedRef = useRef(false);
+  const selectionRequestIdRef = useRef(0);
+  const inFlightSelectionRef = useRef<string | null>(null);
+
   const [flightIata, setFlightIata] = useState(searchParams.get("flight_iata") ?? "");
   const [depIata, setDepIata] = useState(searchParams.get("dep_iata") ?? "");
   const [arrIata, setArrIata] = useState(searchParams.get("arr_iata") ?? "");
@@ -120,6 +126,10 @@ export function TrackingPage() {
   const [weather, setWeather] = useState<WeatherDto | null>(null);
   const [loadingWeather, setLoadingWeather] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+
+  const [delayPrediction, setDelayPrediction] = useState<DelayPredictionResponse | null>(null);
+  const [loadingDelayPrediction, setLoadingDelayPrediction] = useState(false);
+  const [delayPredictionError, setDelayPredictionError] = useState<string | null>(null);
 
   const buildParams = (): FlightSearchParams => {
     const p: FlightSearchParams = {};
@@ -194,7 +204,13 @@ export function TrackingPage() {
     if (air) setAirlineIata(air);
     if (dep) setDepIata(dep);
     if (arr) setArrIata(arr);
-    if ((q || dep || arr || air || st) && !results && !loadingSearch) {
+    if (
+  (q || dep || arr || air || st) &&
+  !results &&
+  !loadingSearch &&
+  !initialSearchStartedRef.current
+) {
+  initialSearchStartedRef.current = true;
       if (q) setFlightIata(q);
       const p: FlightSearchParams = {};
       if (q) p.flight_iata = q;
@@ -211,6 +227,28 @@ export function TrackingPage() {
   }, []);
 
   const handleSelect = async (f: FlightDto) => {
+    const flightNumber = f.flightIata ?? f.flightNumber ?? "";
+
+    if (!flightNumber) {
+      selectionRequestIdRef.current += 1;
+      inFlightSelectionRef.current = null;
+      setSelected(f);
+      setDetail(null);
+      setTracking(null);
+      setDetailError("No flight number available for details.");
+      setLoadingDetail(false);
+      return;
+    }
+
+    const selectionKey = flightNumber.replace(/\s+/g, "").toUpperCase();
+
+    if (inFlightSelectionRef.current === selectionKey) return;
+
+    const requestId = ++selectionRequestIdRef.current;
+    inFlightSelectionRef.current = selectionKey;
+    const isCurrentSelection = () =>
+      requestId === selectionRequestIdRef.current;
+
     setSelected(f);
     setDetail(null);
     setTracking(null);
@@ -221,18 +259,41 @@ export function TrackingPage() {
     setWeather(null);
     setWeatherError(null);
     setLoadingWeather(false);
-    const flightNumber = f.flightIata ?? f.flightNumber ?? "";
-    if (!flightNumber) {
-      setDetailError("No flight number available for details.");
-      setLoadingDetail(false);
-      return;
-    }
+
+    // Reset delay prediction state
+    setDelayPrediction(null);
+    setDelayPredictionError(null);
+    setLoadingDelayPrediction(true);
+
+    // Fetch delay prediction (non-blocking)
+    delayPredictionService
+      .getDelayPrediction(flightNumber)
+      .then((pred) => {
+        if (!isCurrentSelection()) return;
+        if (pred && pred.status === "AVAILABLE") {
+          setDelayPrediction(pred);
+        } else {
+          setDelayPredictionError("Prediction unavailable for this flight.");
+        }
+      })
+      .catch(() => {
+        if (!isCurrentSelection()) return;
+        setDelayPredictionError("Delay prediction service temporarily unavailable.");
+      })
+      .finally(() => {
+        if (!isCurrentSelection()) return;
+        setLoadingDelayPrediction(false);
+      });
+
     try {
-      const [d, t] = await Promise.all([
-        flightService.getByFlightNumber(flightNumber).catch(() => null),
-        flightService.getTracking(flightNumber).catch(() => null),
-      ]);
-      const resolvedDetail = d ?? f;
+      const t = await flightService
+        .getTracking(flightNumber)
+        .catch(() => null);
+
+      const resolvedDetail = f;
+
+      if (!isCurrentSelection()) return;
+
       setDetail(resolvedDetail);
       if (t) {
         setTracking(t);
@@ -241,11 +302,18 @@ export function TrackingPage() {
           setWeatherError(null);
           weatherService
             .getByCoordinates(t.latitude, t.longitude)
-            .then(setWeather)
+            .then((w) => {
+              if (!isCurrentSelection()) return;
+              setWeather(w);
+            })
             .catch(() => {
+              if (!isCurrentSelection()) return;
               setWeatherError("Weather data temporarily unavailable");
             })
-            .finally(() => setLoadingWeather(false));
+            .finally(() => {
+              if (!isCurrentSelection()) return;
+              setLoadingWeather(false);
+            });
         }
       } else {
         setTracking(null);
@@ -259,6 +327,7 @@ export function TrackingPage() {
           airportService
             .getByIata(depIataVal)
             .then((a) => {
+              if (!isCurrentSelection()) return;
               if (a.latitude != null && a.longitude != null) setDepCoords({ lat: a.latitude, lng: a.longitude });
             })
             .catch(() => {})
@@ -269,6 +338,7 @@ export function TrackingPage() {
           airportService
             .getByIata(arrIataVal)
             .then((a) => {
+              if (!isCurrentSelection()) return;
               if (a.latitude != null && a.longitude != null) setArrCoords({ lat: a.latitude, lng: a.longitude });
             })
             .catch(() => {})
@@ -279,7 +349,13 @@ export function TrackingPage() {
       if (e instanceof ApiError) setDetailError(e.message);
       else setDetailError("Failed to load flight details.");
     } finally {
-      setLoadingDetail(false);
+      if (isCurrentSelection()) {
+        setLoadingDetail(false);
+
+        if (inFlightSelectionRef.current === selectionKey) {
+          inFlightSelectionRef.current = null;
+        }
+      }
     }
   };
 
@@ -712,6 +788,85 @@ export function TrackingPage() {
                       </div>
                     )}
                   </>
+                )}
+              </div>
+
+              {/* Delay Prediction – compact */}
+              <div className="glass-panel rounded-xl p-3.5">
+                <div className="flex items-center justify-between border-b border-white/5 pb-2.5 mb-3">
+                  <h3 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-muted-foreground flex items-center gap-2">
+                    <Gauge className="size-3.5 text-primary" /> Delay Prediction
+                  </h3>
+                  {delayPrediction && (
+                    <span className={`text-[10px] font-mono uppercase tracking-widest px-2 py-0.5 rounded-full border ${
+                      delayPrediction.status === "AVAILABLE"
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                        : "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                    }`}>
+                      {delayPrediction.status}
+                    </span>
+                  )}
+                </div>
+                {loadingDelayPrediction && (
+                  <div className="flex items-center justify-center py-6 gap-2">
+                    <Loader2 className="size-4 animate-spin text-primary" />
+                    <span className="text-xs font-mono text-muted-foreground">Generating prediction…</span>
+                  </div>
+                )}
+                {!loadingDelayPrediction && delayPredictionError && (
+                  <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-5 text-center">
+                    <p className="text-xs text-muted-foreground">{delayPredictionError}</p>
+                  </div>
+                )}
+                {!loadingDelayPrediction && delayPrediction && delayPrediction.status === "AVAILABLE" && (
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 space-y-1">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                        <Clock className="size-3" /> Est. Arrival Delay
+                      </div>
+                      <div className="text-xl font-mono font-semibold text-white">
+                        {delayPrediction.predictedArrivalDelayMinutes != null
+                          ? `${delayPrediction.predictedArrivalDelayMinutes.toFixed(1)} min`
+                          : "—"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">Estimate only — not confirmed</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5 space-y-1">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                        <AlertCircle className="size-3" /> Significant Delay Risk
+                      </div>
+                      <div className="text-xl font-mono font-semibold text-white">
+                        {delayPrediction.significantDelayProbability != null
+                          ? `${(delayPrediction.significantDelayProbability * 100).toFixed(0)}%`
+                          : "—"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">Probability delay ≥ 15 min</div>
+                    </div>
+                  </div>
+                )}
+                {!loadingDelayPrediction && delayPrediction && delayPrediction.status !== "AVAILABLE" && (
+                  <p className="text-xs text-muted-foreground font-mono py-3 text-center">
+                    Prediction unavailable for this flight.
+                  </p>
+                )}
+                {!loadingDelayPrediction && !delayPrediction && !delayPredictionError && (
+                  <p className="text-xs text-muted-foreground font-mono py-3 text-center">
+                    Select a flight to load delay prediction.
+                  </p>
+                )}
+                {delayPrediction && delayPrediction.status === "AVAILABLE" && (
+                  <div className="mt-3 pt-3 border-t border-white/5 grid grid-cols-2 gap-2 text-[10px]">
+                    <div className="text-muted-foreground">Generated</div>
+                    <div className="font-mono text-white text-right">
+                      {delayPrediction.predictionGeneratedAt
+                        ? new Date(delayPrediction.predictionGeneratedAt).toLocaleString()
+                        : "—"}
+                    </div>
+                    <div className="text-muted-foreground">Model</div>
+                    <div className="font-mono text-white text-right">
+                      {delayPrediction.modelVersion ?? "—"}
+                    </div>
+                  </div>
                 )}
               </div>
 
